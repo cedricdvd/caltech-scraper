@@ -3,6 +3,8 @@ import json
 import re
 import os
 
+from constants import PREREQ_PATTERN
+
 # Example Course:
 # <div class="course-description2 " id={course_id}>
 #   <div class="course-description2__label">
@@ -87,6 +89,44 @@ def parse_courses(department):
         
     return 0
 
-def parse_prerequisites(department):
-    # TODO:
+def parse_prerequisites(current_department, departments):
+    if os.path.isfile(f'json/prerequisites/{current_department}.json'):
+        print('JSON file already exists. Skipping request.')
+        return 0
+    
+    # Load course information
+    with open(f'json/courses/{current_department}.json', 'r') as file:
+        courses = json.load(file)
+    
+    prereqs_dict = dict()
+    
+    # Parse course prerequisites
+    for course in courses:
+        prereq_text = courses[course].get('prerequisites')
+        
+        # Check if prerequisites exist
+        if prereq_text is None:
+            continue
+        
+        course_prereqs = []
+        prereq_text = re.sub(r'Math', 'Ma', prereq_text)
+        prereqs = re.findall(PREREQ_PATTERN, prereq_text)
+        
+        for index, group in enumerate(prereqs):
+            if group[0] not in departments:
+                group = list(group)
+                group[0] = prereqs[index - 1][0]
+                group = tuple(group)
+                
+            prereq_departments = [dep for dep in group[0:4] if dep != '']
+            entry = '/'.join(prereq_departments) + ''.join(group[4:])
+            course_prereqs.append(entry)
+            
+            if len(course_prereqs) != 0:
+                prereqs_dict[course] = course_prereqs
+                
+    with open(f'json/prerequisites/{current_department}.json', 'w') as output_file:
+        json_object = json.dumps(prereqs_dict, indent=4)
+        output_file.write(json_object + '\n')
+    
     return

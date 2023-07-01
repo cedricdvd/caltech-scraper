@@ -2,7 +2,7 @@ import os
 import json
 
 from scraper import get_courses, get_departments
-from course_parser import parse_courses
+from course_parser import parse_courses, parse_prerequisites
 
 def main():
     # Create json directory
@@ -36,7 +36,16 @@ def main():
     for department in json_data:
         get_courses(department)
         parse_courses(department)
-        
+    
+    
+    if os.path.isdir('json/prerequisites'):
+        print('JSON directory already exists. Skipping creation.')
+    else:
+        os.mkdir('json/prerequisites')
+        print('JSON directory created.')
+    
+    for department in json_data:
+        parse_prerequisites(department, json_data)
     
 
 if __name__ == '__main__':
