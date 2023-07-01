@@ -2,6 +2,7 @@ import os
 import json
 
 from scraper import get_courses, get_departments
+from course_parser import parse_courses
 
 def main():
     # Create json directory
@@ -24,12 +25,19 @@ def main():
     else:
         os.mkdir('html')
         print('HTML directory created.')
+        
+    if os.path.isdir('json/courses'):
+        print('JSON directory already exists. Skipping creation.')
+    else:
+        os.mkdir('json/courses')
+        print('JSON directory created.')
     
     # Store courses in HTML files
     for department in json_data:
         get_courses(department)
+        parse_courses(department)
         
-        
+    
 
 if __name__ == '__main__':
     main()
