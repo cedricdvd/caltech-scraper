@@ -1,18 +1,33 @@
-import requests
 from bs4 import BeautifulSoup as bs
-import json
+import requests
 import re
 import os
 
+from connector import connect_database
 from constants import DIR_URL, DEPARTMENT_PATTERN, DEPARTMENT_URL
 
 def get_departments():
-    # Check if file exists
-    if os.path.isfile('json/departments.json'):
-        print('JSON file already exists. Skipping request.')
-        return 0
+    # Get database and cursor connection
+    database, cursor = connect_database()
+    if database is None or cursor is None:
+        print('Connection failed.')
+        return 1
     
-    # Scrape departments from page
+    # Check if table exists
+    cursor.execute('SHOW TABLES')
+    if ('departments',) in cursor.fetchall():
+        cursor.execute('SELECT COUNT(*) FROM departments')
+        row_count = cursor.fetchone()
+        if row_count is not None and row_count[0] == 46:
+            print('Table already exists. Skipping request.')
+            return 0
+    
+    # Create table if not exists
+    with open('sql/create_departments.sql', 'r') as file:
+        create_department_sql = file.read()
+    cursor.execute(create_department_sql)
+    
+    # Prepare html page
     page = requests.get(DIR_URL)
     
     if page.status_code != 200:
@@ -22,21 +37,16 @@ def get_departments():
     soup = bs(page.text, 'html.parser')
     departments = soup.find_all('a',{'href': re.compile(DEPARTMENT_PATTERN)})
     
-    # Extract department names from links
-    codes = dict()
-    
+    # Store departments into database
     for department in departments:
-        
-        # Get department title and code
         title = department.text.strip()
         code = department['href'].split('/')[-2]
-        
-        codes[code] = title
-        
-    with open('json/departments.json', 'w') as output_file:
-        json_object = json.dumps(codes, indent = 4)
-        output_file.write(json_object)
-        output_file.write('\n')
+        cursor.execute('INSERT INTO departments (abbr, title, course_count, course_prereq_count) VALUES (%s, %s, 0, 0)', (code, title))
+    
+    # Commit changes and close connections
+    database.commit()
+    cursor.close()
+    database.close()
     
     return 0
 

@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS courses (
+    label VARCHAR(30) NOT NULL,
+    title VARCHAR(120) NOT NULL,
+    course_desc VARCHAR(1500),
+    prereqs VARCHAR(190),
+    id INT AUTO_INCREMENT PRIMARY KEY
+);
