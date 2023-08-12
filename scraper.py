@@ -1,74 +1,52 @@
-from bs4 import BeautifulSoup as bs
-import requests
-import re
 import os
-
+from web_crawler import get_courses, get_departments
+from course_parser import parse_courses, parse_prerequisites
 from connector import connect_database
-from constants import DIR_URL, DEPARTMENT_PATTERN, DEPARTMENT_URL
 
-def get_departments():
-    # Get database and cursor connection
+
+def scrape():
+    # Store departments into database
+    get_departments()
+    
+    # Create html if does not exist
+    if os.path.isdir('html'):
+        print('HTML directory already exists. Skipping creation.')
+    else:
+        os.mkdir('html')
+        print('HTML directory created.')
+    
+    # Get connection to database, cursor
     database, cursor = connect_database()
     if database is None or cursor is None:
-        print('Connection failed.')
         return 1
     
-    # Check if table exists
-    cursor.execute('SHOW TABLES')
-    if ('departments',) in cursor.fetchall():
-        cursor.execute('SELECT COUNT(*) FROM departments')
-        row_count = cursor.fetchone()
-        if row_count is not None and row_count[0] == 46:
-            print('Table already exists. Skipping request.')
-            return 0
+    # Get departments
+    cursor.execute('SELECT abbr FROM departments')
+    departments = [department[0] for department in cursor.fetchall()]
     
-    # Create table if not exists
-    with open('sql/create_departments.sql', 'r') as file:
-        create_department_sql = file.read()
-    cursor.execute(create_department_sql)
+    # Create course tables
+    with open('sql/create_courses.sql', 'r') as file:
+        create_courses_sql = file.read()
+        cursor.execute(create_courses_sql)
+        
+    with open('sql/create_course_department.sql', 'r') as file:
+        create_course_department_sql = file.read()
+        cursor.execute(create_course_department_sql)
     
-    # Prepare html page
-    page = requests.get(DIR_URL)
-    
-    if page.status_code != 200:
-        print('Error: Could not access website.')
-        return 1
-    
-    soup = bs(page.text, 'html.parser')
-    departments = soup.find_all('a',{'href': re.compile(DEPARTMENT_PATTERN)})
-    
-    # Store departments into database
+    # Scrape and process course pages
     for department in departments:
-        title = department.text.strip()
-        code = department['href'].split('/')[-2]
-        cursor.execute('INSERT INTO departments (abbr, title, course_count, course_prereq_count) VALUES (%s, %s, 0, 0)', (code, title))
+        print(f'Parsing {department}\'s courses...')
+        get_courses(department)
+        parse_courses(department)
     
-    # Commit changes and close connections
-    database.commit()
-    cursor.close()
-    database.close()
+    # Process course prerequisites
+    with open('sql/create_prerequisites.sql', 'r') as file:
+        create_prerequisites_sql = file.read()
+        cursor.execute(create_prerequisites_sql)
+        
+    for department in departments:
+        print(f'Parsing {department}\'s prerequisites...')
+        parse_prerequisites(department, departments)
     
-    return 0
-
-
-def get_courses(department):
-    
-    # Check if file exists
-    if os.path.isfile(f'html/{department}.html'):
-        print('HTML file already exists. Skipping request.')
-        return 1
-    
-    # Check if website accessible
-    page = requests.get(f'{DEPARTMENT_URL}{department}/')
-    if page.status_code != 200:
-        print('Error: Could not access website.')
-        return 1
-    
-    # Store website to html file
-    source = bs(page.text, 'html.parser')
-    classes = source.find_all('div', {'class': 'course-description2'})
-    with open(f'html/{department}.html', 'w') as f:
-        for c in classes:
-            f.write(str(c))
-        f.write('\n')
-    return 0
+if __name__ == '__main__':
+    scrape()
