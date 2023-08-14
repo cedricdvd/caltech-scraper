@@ -7,11 +7,14 @@ def perform_actions(args):
     if database is None or cursor is None:
         return 1
     
+    # Print out list of departments
     if (args.list):
         cursor.execute('SELECT abbr FROM departments')
         department_info = cursor.fetchall()
         print(department_info)
     
+    
+    # Print out list of courses in department
     if (args.department):
         cursor.execute('SELECT id FROM departments WHERE abbr = %s', (args.department,))
         department_id = cursor.fetchone()
@@ -29,7 +32,8 @@ def perform_actions(args):
         
         for course in courses:
             print(f'{course[0]} -- {course[1]}')
-
+            
+    # Print out courses that match search query
     if (args.search):
         cursor.execute('SELECT label, title, course_desc FROM courses WHERE label LIKE %s', (f'%{args.search}%',))
         courses = cursor.fetchall()
@@ -41,6 +45,7 @@ def perform_actions(args):
         for course in courses:
             print(f'{course[0]} -- {course[1]}.\n{course[2]}')
     
+    # Print out course information
     if (args.course):
         cursor.execute('SELECT * FROM courses WHERE label = %s', (args.course,))
         course = cursor.fetchone()
@@ -51,6 +56,7 @@ def perform_actions(args):
         
         print(f'{course[0]} -- {course[1]}.\n{course[2]}\nPrerequisites: {course[3]}.')
         
+        # Print out prerequisites
         cursor.execute('SELECT label FROM courses WHERE id IN (SELECT prereq_id FROM course_prerequisites WHERE course_id = %s)', (course[4],))
         prerequisites = cursor.fetchall()
         
@@ -58,7 +64,8 @@ def perform_actions(args):
             print('Prerequisite Courses:')
             for prereq in prerequisites:
                 print(f'- {prereq[0]}')
-                
+        
+        # Skip successor courses if not needed
         if not args.needed:
             return 0
         
@@ -79,7 +86,7 @@ def perform_actions(args):
 def main():
     parser = argparse.ArgumentParser(
         prog='caltech-scraper.py',
-        description='Caltech Course Catalogue',
+        description='A command line tool that provides information about Caltech courses from 2022-2023.',
         epilog=''
     )
     
